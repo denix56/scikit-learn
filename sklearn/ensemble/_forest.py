@@ -35,7 +35,6 @@ Single and multi-output problems are both handled.
 # Authors: The scikit-learn developers
 # SPDX-License-Identifier: BSD-3-Clause
 
-
 import threading
 from abc import ABCMeta, abstractmethod
 from numbers import Integral, Real
@@ -77,20 +76,20 @@ from sklearn.utils.validation import (
     validate_data,
 )
 
-from ..tree import (
+from sklearn.tree import (
     BaseDecisionTree,
     DecisionTreeClassifier,
     DecisionTreeRegressor,
     ExtraTreeClassifier,
     ExtraTreeRegressor,
 )
-from ..tree._tree import DOUBLE, DTYPE
+from sklearn.tree._tree import DOUBLE, DTYPE
 
 __all__ = [
-    "RandomForestClassifier",
-    "RandomForestRegressor",
     "ExtraTreesClassifier",
     "ExtraTreesRegressor",
+    "RandomForestClassifier",
+    "RandomForestRegressor",
     "RandomTreesEmbedding",
 ]
 
@@ -723,7 +722,7 @@ class BaseForest(MultiOutputMixin, BaseEnsemble, metaclass=ABCMeta):
         n_samples = y.shape[0]
         n_outputs = self.n_outputs_
         if is_classifier(self) and hasattr(self, "n_classes_"):
-            # n_classes_ is a ndarray at this stage
+            # n_classes_ is an ndarray at this stage
             # all the supported type of target will have the same number of
             # classes in all outputs
             oob_pred_shape = (n_samples, self.n_classes_[0], n_outputs)
@@ -1275,7 +1274,7 @@ class ForestClassifier(ClassifierMixin, BaseForest, metaclass=ABCMeta):
             multi_output=True,
             accept_sparse="csc",
             dtype=DTYPE,
-            force_all_finite=False,
+            ensure_all_finite=False,
             reset=first_call,
         )
 
@@ -1576,6 +1575,7 @@ class ForestClassifier(ClassifierMixin, BaseForest, metaclass=ABCMeta):
     def __sklearn_tags__(self):
         tags = super().__sklearn_tags__()
         tags.classifier_tags.multi_label = True
+        tags.input_tags.sparse = True
         return tags
 
 
@@ -1753,7 +1753,7 @@ class ForestRegressor(RegressorMixin, BaseForest, metaclass=ABCMeta):
 
     def __sklearn_tags__(self):
         tags = super().__sklearn_tags__()
-        # tags.regressor_tags.multi_label = True TODO: add regression support
+        tags.input_tags.sparse = True
         return tags
 
 
@@ -1772,6 +1772,13 @@ class RandomForestClassifier(ForestClassifier):
 
     For a comparison between tree-based ensemble models see the example
     :ref:`sphx_glr_auto_examples_ensemble_plot_forest_hist_grad_boosting_comparison.py`.
+
+    This estimator has native support for missing values (NaNs). During training,
+    the tree grower learns at each split point whether samples with missing values
+    should go to the left or right child, based on the potential gain. When predicting,
+    samples with missing values are assigned to the left or right child consequently.
+    If no missing values were encountered for a given feature during training, then
+    samples with missing values are mapped to whichever child has the most samples.
 
     Read more in the :ref:`User Guide <forest>`.
 
@@ -1876,6 +1883,9 @@ class RandomForestClassifier(ForestClassifier):
         By default, :func:`~sklearn.metrics.accuracy_score` is used.
         Provide a callable with signature `metric(y_true, y_pred)` to use a
         custom metric. Only available if `bootstrap=True`.
+
+        For an illustration of out-of-bag (OOB) error estimation, see the example
+        :ref:`sphx_glr_auto_examples_ensemble_plot_ensemble_oob.py`.
 
     n_jobs : int, default=None
         The number of jobs to run in parallel. :meth:`fit`, :meth:`predict`,
@@ -2065,7 +2075,8 @@ class RandomForestClassifier(ForestClassifier):
 
     References
     ----------
-    .. [1] L. Breiman, "Random Forests", Machine Learning, 45(1), 5-32, 2001.
+    .. [1] :doi:`L. Breiman, "Random Forests", Machine Learning, 45(1), 5-32, 2001.
+           <10.1023/A:1010933404324>`
 
     Examples
     --------
@@ -2158,17 +2169,6 @@ class RandomForestClassifier(ForestClassifier):
         self.monotonic_cst = monotonic_cst
         self.ccp_alpha = ccp_alpha
 
-    def __sklearn_tags__(self):
-        tags = super().__sklearn_tags__()
-        # TODO: replace by a statistical test, see meta-issue #16298
-        # tags._xfail_checks = {
-        #     "check_sample_weight_equivalence": (
-        #         "sample_weight is not equivalent to removing/repeating samples."
-        #     ),
-        # }
-        return tags
-
-
 class RandomForestRegressor(ForestRegressor):
     """
     A random forest regressor.
@@ -2181,6 +2181,13 @@ class RandomForestRegressor(ForestRegressor):
     The sub-sample size is controlled with the `max_samples` parameter if
     `bootstrap=True` (default), otherwise the whole dataset is used to build
     each tree.
+
+    This estimator has native support for missing values (NaNs). During training,
+    the tree grower learns at each split point whether samples with missing values
+    should go to the left or right child, based on the potential gain. When predicting,
+    samples with missing values are assigned to the left or right child consequently.
+    If no missing values were encountered for a given feature during training, then
+    samples with missing values are mapped to whichever child has the most samples.
 
     For a comparison between tree-based ensemble models see the example
     :ref:`sphx_glr_auto_examples_ensemble_plot_forest_hist_grad_boosting_comparison.py`.
@@ -2196,24 +2203,23 @@ class RandomForestRegressor(ForestRegressor):
            The default value of ``n_estimators`` changed from 10 to 100
            in 0.22.
 
-    criterion : {"squared_error", "absolute_error", "friedman_mse", "poisson"}, \
-            default="squared_error"
+    criterion : {"squared_error", "absolute_error", "poisson"}, default="squared_error"
         The function to measure the quality of a split. Supported criteria
         are "squared_error" for the mean squared error, which is equal to
         variance reduction as feature selection criterion and minimizes the L2
-        loss using the mean of each terminal node, "friedman_mse", which uses
-        mean squared error with Friedman's improvement score for potential
-        splits, "absolute_error" for the mean absolute error, which minimizes
-        the L1 loss using the median of each terminal node, and "poisson" which
-        uses reduction in Poisson deviance to find splits.
-        Training using "absolute_error" is significantly slower
-        than when using "squared_error".
+        loss using the mean of each terminal node, "absolute_error" for the mean
+        absolute error, which minimizes the L1 loss using the median of each terminal
+        node, and "poisson" which uses reduction in Poisson deviance to find splits,
+        also using the mean of each terminal node.
 
         .. versionadded:: 0.18
            Mean Absolute Error (MAE) criterion.
 
         .. versionadded:: 1.0
            Poisson criterion.
+
+        .. versionchanged:: 1.9
+            Criterion `"friedman_mse"` was deprecated.
 
     max_depth : int, default=None
         The maximum depth of the tree. If None, then nodes are expanded until
@@ -2305,6 +2311,9 @@ class RandomForestRegressor(ForestRegressor):
         By default, :func:`~sklearn.metrics.r2_score` is used.
         Provide a callable with signature `metric(y_true, y_pred)` to use a
         custom metric. Only available if `bootstrap=True`.
+
+        For an illustration of out-of-bag (OOB) error estimation, see the example
+        :ref:`sphx_glr_auto_examples_ensemble_plot_ensemble_oob.py`.
 
     n_jobs : int, default=None
         The number of jobs to run in parallel. :meth:`fit`, :meth:`predict`,
@@ -2454,11 +2463,12 @@ class RandomForestRegressor(ForestRegressor):
 
     The default value ``max_features=1.0`` uses ``n_features``
     rather than ``n_features / 3``. The latter was originally suggested in
-    [1], whereas the former was more recently justified empirically in [2].
+    [1]_, whereas the former was more recently justified empirically in [2]_.
 
     References
     ----------
-    .. [1] L. Breiman, "Random Forests", Machine Learning, 45(1), 5-32, 2001.
+    .. [1] :doi:`L. Breiman, "Random Forests", Machine Learning, 45(1), 5-32, 2001.
+           <10.1023/A:1010933404324>`
 
     .. [2] P. Geurts, D. Ernst., and L. Wehenkel, "Extremely randomized
            trees", Machine Learning, 63(1), 3-42, 2006.
@@ -2545,17 +2555,6 @@ class RandomForestRegressor(ForestRegressor):
         self.ccp_alpha = ccp_alpha
         self.monotonic_cst = monotonic_cst
 
-    def __sklearn_tags__(self):
-        tags = super().__sklearn_tags__()
-        # TODO: replace by a statistical test, see meta-issue #16298
-        # tags._xfail_checks = {
-        #     "check_sample_weight_equivalence": (
-        #         "sample_weight is not equivalent to removing/repeating samples."
-        #     ),
-        # }
-        return tags
-
-
 class ExtraTreesClassifier(ForestClassifier):
     """
     An extra-trees classifier.
@@ -2564,6 +2563,14 @@ class ExtraTreesClassifier(ForestClassifier):
     randomized decision trees (a.k.a. extra-trees) on various sub-samples
     of the dataset and uses averaging to improve the predictive accuracy
     and control over-fitting.
+
+    This estimator has native support for missing values (NaNs) for
+    random splits. During training, a random threshold will be chosen
+    to split the non-missing values on. Then the non-missing values will be sent
+    to the left and right child based on the randomly selected threshold, while
+    the missing values will also be randomly sent to the left or right child.
+    This is repeated for every feature considered at each split. The best split
+    among these is chosen.
 
     Read more in the :ref:`User Guide <forest>`.
 
@@ -2668,6 +2675,9 @@ class ExtraTreesClassifier(ForestClassifier):
         By default, :func:`~sklearn.metrics.accuracy_score` is used.
         Provide a callable with signature `metric(y_true, y_pred)` to use a
         custom metric. Only available if `bootstrap=True`.
+
+        For an illustration of out-of-bag (OOB) error estimation, see the example
+        :ref:`sphx_glr_auto_examples_ensemble_plot_ensemble_oob.py`.
 
     n_jobs : int, default=None
         The number of jobs to run in parallel. :meth:`fit`, :meth:`predict`,
@@ -2953,6 +2963,14 @@ class ExtraTreesRegressor(ForestRegressor):
     of the dataset and uses averaging to improve the predictive accuracy
     and control over-fitting.
 
+    This estimator has native support for missing values (NaNs) for
+    random splits. During training, a random threshold will be chosen
+    to split the non-missing values on. Then the non-missing values will be sent
+    to the left and right child based on the randomly selected threshold, while
+    the missing values will also be randomly sent to the left or right child.
+    This is repeated for every feature considered at each split. The best split
+    among these is chosen.
+
     Read more in the :ref:`User Guide <forest>`.
 
     Parameters
@@ -2964,21 +2982,20 @@ class ExtraTreesRegressor(ForestRegressor):
            The default value of ``n_estimators`` changed from 10 to 100
            in 0.22.
 
-    criterion : {"squared_error", "absolute_error", "friedman_mse", "poisson"}, \
-            default="squared_error"
+    criterion : {"squared_error", "absolute_error", "poisson"}, default="squared_error"
         The function to measure the quality of a split. Supported criteria
         are "squared_error" for the mean squared error, which is equal to
         variance reduction as feature selection criterion and minimizes the L2
-        loss using the mean of each terminal node, "friedman_mse", which uses
-        mean squared error with Friedman's improvement score for potential
-        splits, "absolute_error" for the mean absolute error, which minimizes
-        the L1 loss using the median of each terminal node, and "poisson" which
-        uses reduction in Poisson deviance to find splits.
-        Training using "absolute_error" is significantly slower
-        than when using "squared_error".
+        loss using the mean of each terminal node, "absolute_error" for the mean
+        absolute error, which minimizes the L1 loss using the median of each terminal
+        node, and "poisson" which uses reduction in Poisson deviance to find splits,
+        also using the mean of each terminal node.
 
         .. versionadded:: 0.18
            Mean Absolute Error (MAE) criterion.
+
+        .. versionchanged:: 1.9
+            Criterion `"friedman_mse"` was deprecated.
 
     max_depth : int, default=None
         The maximum depth of the tree. If None, then nodes are expanded until
@@ -3070,6 +3087,9 @@ class ExtraTreesRegressor(ForestRegressor):
         By default, :func:`~sklearn.metrics.r2_score` is used.
         Provide a callable with signature `metric(y_true, y_pred)` to use a
         custom metric. Only available if `bootstrap=True`.
+
+        For an illustration of out-of-bag (OOB) error estimation, see the example
+        :ref:`sphx_glr_auto_examples_ensemble_plot_ensemble_oob.py`.
 
     n_jobs : int, default=None
         The number of jobs to run in parallel. :meth:`fit`, :meth:`predict`,
@@ -3313,6 +3333,10 @@ class RandomTreesEmbedding(TransformerMixin, BaseForest):
     ``n_out <= n_estimators * max_leaf_nodes``. If ``max_leaf_nodes == None``,
     the number of leaf nodes is at most ``n_estimators * 2 ** max_depth``.
 
+    For an example of applying Random Trees Embedding to non-linear
+    classification, see
+    :ref:`sphx_glr_auto_examples_ensemble_plot_random_forest_embedding.py`.
+
     Read more in the :ref:`User Guide <random_trees_embedding>`.
 
     Parameters
@@ -3466,7 +3490,7 @@ class RandomTreesEmbedding(TransformerMixin, BaseForest):
            Machine Learning, 63(1), 3-42, 2006.
     .. [2] Moosmann, F. and Triggs, B. and Jurie, F.  "Fast discriminative
            visual codebooks using randomized clustering forests"
-           NIPS 2007
+           NIPS 2007.
 
     Examples
     --------
@@ -3674,10 +3698,5 @@ class RandomTreesEmbedding(TransformerMixin, BaseForest):
 
     def __sklearn_tags__(self):
         tags = super().__sklearn_tags__()
-        # TODO: replace by a statistical test, see meta-issue #16298
-        # tags._xfail_checks = {
-        #     "check_sample_weight_equivalence": (
-        #         "sample_weight is not equivalent to removing/repeating samples."
-        #     ),
-        # }
+        tags.input_tags.sparse = True
         return tags

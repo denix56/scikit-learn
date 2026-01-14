@@ -24,8 +24,8 @@ cnp.import_array()
 from scipy.sparse import issparse
 from scipy.sparse import csr_matrix
 
-from ._utils cimport safe_realloc
-from ._utils cimport sizet_ptr_to_ndarray
+from sklearn.tree._utils cimport safe_realloc
+from sklearn.tree._utils cimport sizet_ptr_to_ndarray
 
 
 cdef extern from "numpy/arrayobject.h":
@@ -120,19 +120,7 @@ cdef class TreeBuilder:
             # since we have to copy we will make it fortran for efficiency
             X = np.asfortranarray(X, dtype=DTYPE)
 
-        # TODO: This check for y seems to be redundant, as it is also
-        #  present in the BaseDecisionTree's fit method, and therefore
-        #  can be removed.
-        if y.base.dtype != DOUBLE or not y.base.flags.contiguous:
-            y = np.ascontiguousarray(y, dtype=DOUBLE)
-
-        if (
-            sample_weight is not None and
-            (
-                sample_weight.base.dtype != DOUBLE or
-                not sample_weight.base.flags.contiguous
-            )
-        ):
+        if sample_weight is not None and not sample_weight.base.flags.contiguous:
             sample_weight = np.asarray(sample_weight, dtype=DOUBLE, order="C")
 
         return X, y, sample_weight
@@ -1343,6 +1331,7 @@ cdef class BaseTree:
         # Extract input
         cdef const float32_t[:, :] X_ndarray = X
         cdef intp_t n_samples = X.shape[0]
+        cdef float32_t X_i_node_feature
 
         # Initialize output
         cdef intp_t[:] indptr = np.zeros(n_samples + 1, dtype=np.intp)
@@ -1370,7 +1359,12 @@ cdef class BaseTree:
 
                     # compute the feature value to compare against threshold
                     feature = self._compute_feature(X_ndarray, i, node)
-                    if feature <= node.threshold:
+                    if isnan(feature):
+                        if node.missing_go_to_left:
+                            node = &self.nodes[node.left_child]
+                        else:
+                            node = &self.nodes[node.right_child]
+                    elif feature <= node.threshold:
                         node = &self.nodes[node.left_child]
                     else:
                         node = &self.nodes[node.right_child]

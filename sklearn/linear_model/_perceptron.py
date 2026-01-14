@@ -3,8 +3,8 @@
 
 from numbers import Real
 
-from ..utils._param_validation import Interval, StrOptions
-from ._stochastic_gradient import BaseSGDClassifier
+from sklearn.linear_model._stochastic_gradient import BaseSGDClassifier
+from sklearn.utils._param_validation import Interval, StrOptions
 
 
 class Perceptron(BaseSGDClassifier):
@@ -179,7 +179,7 @@ class Perceptron(BaseSGDClassifier):
             "penalty": [StrOptions({"l2", "l1", "elasticnet"}), None],
             "alpha": [Interval(Real, 0, None, closed="left")],
             "l1_ratio": [Interval(Real, 0, 1, closed="both")],
-            "eta0": [Interval(Real, 0, None, closed="left")],
+            "eta0": [Interval(Real, 0, None, closed="neither")],
         }
     )
 
@@ -224,13 +224,3 @@ class Perceptron(BaseSGDClassifier):
             class_weight=class_weight,
             n_jobs=n_jobs,
         )
-
-    def __sklearn_tags__(self):
-        tags = super().__sklearn_tags__()
-        # TODO: replace by a statistical test, see meta-issue #16298
-        tags._xfail_checks = {
-            "check_sample_weight_equivalence": (
-                "sample_weight is not equivalent to removing/repeating samples."
-            ),
-        }
-        return tags

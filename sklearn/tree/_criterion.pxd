@@ -3,7 +3,7 @@
 
 # See _criterion.pyx for implementation details.
 from libcpp.vector cimport vector
-from ..utils._typedefs cimport float64_t, int8_t, intp_t
+from sklearn.utils._typedefs cimport float64_t, int8_t, intp_t
 
 
 cdef class BaseCriterion:

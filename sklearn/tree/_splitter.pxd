@@ -4,9 +4,11 @@
 # See _splitter.pyx for details.
 from libcpp.vector cimport vector
 
-from ._criterion cimport BaseCriterion, Criterion
-from ._tree cimport ParentInfo
-from ..utils._typedefs cimport float32_t, float64_t, intp_t, int8_t, int32_t, uint8_t, uint32_t
+from sklearn.utils._typedefs cimport (
+    float32_t, float64_t, int8_t, int32_t, intp_t, uint8_t, uint32_t
+)
+from sklearn.tree._criterion cimport Criterion
+from sklearn.tree._tree cimport ParentInfo
 
 
 cdef struct SplitRecord:

@@ -8,24 +8,28 @@ from numbers import Integral
 
 import numpy as np
 
-from sklearn.neighbors._base import _check_precomputed
-
-from ..base import ClassifierMixin, _fit_context
-from ..metrics._pairwise_distances_reduction import (
+from sklearn.base import ClassifierMixin, _fit_context
+from sklearn.metrics._pairwise_distances_reduction import (
     ArgKminClassMode,
     RadiusNeighborsClassMode,
 )
-from ..utils._param_validation import StrOptions
-from ..utils.arrayfuncs import _all_with_any_reduction_axis_1
-from ..utils.extmath import weighted_mode
-from ..utils.fixes import _mode
-from ..utils.validation import (
+from sklearn.neighbors._base import (
+    KNeighborsMixin,
+    NeighborsBase,
+    RadiusNeighborsMixin,
+    _check_precomputed,
+    _get_weights,
+)
+from sklearn.utils._param_validation import StrOptions
+from sklearn.utils.arrayfuncs import _all_with_any_reduction_axis_1
+from sklearn.utils.extmath import weighted_mode
+from sklearn.utils.fixes import _mode
+from sklearn.utils.validation import (
     _is_arraylike,
     _num_samples,
     check_is_fitted,
     validate_data,
 )
-from ._base import KNeighborsMixin, NeighborsBase, RadiusNeighborsMixin, _get_weights
 
 
 def _adjusted_metric(metric, metric_kwargs, p=None):
@@ -182,7 +186,7 @@ class KNeighborsClassifier(KNeighborsMixin, ClassifierMixin, NeighborsBase):
     >>> print(neigh.predict([[1.1]]))
     [0]
     >>> print(neigh.predict_proba([[0.9]]))
-    [[0.666... 0.333...]]
+    [[0.666 0.333]]
     """
 
     _parameter_constraints: dict = {**NeighborsBase._parameter_constraints}
@@ -359,7 +363,7 @@ class KNeighborsClassifier(KNeighborsMixin, ClassifierMixin, NeighborsBase):
                     # on many combination of datasets.
                     # Hence, we choose to enforce it here.
                     # For more information, see:
-                    # https://github.com/scikit-learn/scikit-learn/pull/24076#issuecomment-1445258342  # noqa
+                    # https://github.com/scikit-learn/scikit-learn/pull/24076#issuecomment-1445258342
                     # TODO: adapt the heuristic for `strategy="auto"` for
                     # `ArgKminClassMode` and use `strategy="auto"`.
                     strategy="parallel_on_X",
@@ -449,13 +453,6 @@ class KNeighborsClassifier(KNeighborsMixin, ClassifierMixin, NeighborsBase):
         tags = super().__sklearn_tags__()
         tags.classifier_tags.multi_label = True
         tags.input_tags.pairwise = self.metric == "precomputed"
-        if tags.input_tags.pairwise:
-            tags._xfail_checks.update(
-                {
-                    "check_n_features_in_after_fitting": "FIXME",
-                    "check_dataframe_column_names_consistency": "FIXME",
-                }
-            )
         return tags
 
 
@@ -814,7 +811,7 @@ class RadiusNeighborsClassifier(RadiusNeighborsMixin, ClassifierMixin, Neighbors
                 # on many combination of datasets.
                 # Hence, we choose to enforce it here.
                 # For more information, see:
-                # https://github.com/scikit-learn/scikit-learn/pull/26828/files#r1282398471  # noqa
+                # https://github.com/scikit-learn/scikit-learn/pull/26828/files#r1282398471
             )
             return probabilities
 

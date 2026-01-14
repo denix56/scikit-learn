@@ -78,6 +78,9 @@ can be used via the `BSD 3-Clause License
 your work. Citations of scikit-learn are highly encouraged and appreciated. See
 :ref:`citing scikit-learn <citing-scikit-learn>`.
 
+However, the scikit-learn logo is subject to some terms and conditions.
+See :ref:`branding-and-logos`.
+
 Implementation decisions
 ------------------------
 
@@ -137,7 +140,7 @@ See :ref:`adding_graphical_models`.
 Will you add GPU support?
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Adding GPU support by default would introduce heavy harware-specific software
+Adding GPU support by default would introduce heavy hardware-specific software
 dependencies and existing algorithms would need to be reimplemented. This would
 make it both harder for the average user to install scikit-learn and harder for
 the developers to maintain the code.
@@ -300,6 +303,50 @@ reviewers are busy. We ask for your understanding and request that you
 not close your pull request or discontinue your work solely because of
 this reason.
 
+For tips on how to make your pull request easier to review and more likely to be
+reviewed quickly, see :ref:`improve_issue_pr`.
+
+.. _improve_issue_pr:
+
+How do I improve my issue or pull request?
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+To help your issue receive attention or improve the likelihood of your pull request
+being reviewed, you can try:
+
+* follow our :ref:`contribution guidelines <contributing>`, in particular
+  :ref:`automated_contributions_policy`, :ref:`filing_bugs`,
+  :ref:`stalled_pull_request` and :ref:`stalled_unclaimed_issues`,
+* complete all sections of the issue or pull request template provided by GitHub,
+  including a clear description of the issue or motivation and thought process behind
+  the pull request
+* ensure the title clearly describes the issue or pull request and does not include
+  an issue number.
+
+For your pull requests specifically, the following will make it easier to review:
+
+* ensure your PR addresses an issue for which there is clear consensus on the solution
+  (see :ref:`issues_tagged_needs_triage`),
+* ensure the PR satisfies all items in the :ref:`Pull request checklist <pr_checklist>`,
+* ensure the changes are minimal and directly relevant to the described issue.
+
+What does the "spam" label for issues or pull requests mean?
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The "spam" label is an indication for reviewers that the issue or
+pull request may not have received sufficient effort or preparation
+from the author for a productive review. The maintainers are using this label
+as a way to deal with the increase of low value PRs and issues.
+
+If an issue or PR was labeled as spam and simultaneously closed, the decision
+is final. A common reason for this happening is when people open a PR for an
+issue that is still under discussion. Please wait for the discussion to
+converge before opening a PR.
+
+If your issue or PR was labeled as spam and not closed, see :ref:`improve_issue_pr`
+for tips on improving your issue or pull request and increasing the likelihood
+of the label being removed.
+
 .. _new_algorithms_inclusion_criteria:
 
 What are the inclusion criteria for new algorithms?
@@ -322,6 +369,9 @@ its usefulness via common use-cases/applications and corroborate performance
 improvements, if any, with benchmarks and/or plots. It is expected that the
 proposed algorithm should outperform the methods that are already implemented
 in scikit-learn at least in some areas.
+
+Please do not propose algorithms you (your best friend, colleague or boss)
+created. scikit-learn is not a good venue for advertising your own work.
 
 Inclusion of a new algorithm speeding up an existing model is easier if:
 
@@ -359,6 +409,15 @@ long-term maintenance issues in open-source software, look at
 
 Using scikit-learn
 ------------------
+
+How do I get started with scikit-learn?
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+If you are new to scikit-learn, or looking to strengthen your understanding,
+we highly recommend the **scikit-learn MOOC (Massive Open Online Course)**.
+
+See our :ref:`External Resources, Videos and Talks page <external_resources>`
+for more details.
 
 What's the best way to get help on scikit-learn usage?
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -513,7 +572,7 @@ program. Insert the following instructions in your main script::
 
         # call scikit-learn utils with n_jobs > 1 here
 
-You can find more default on the new start methods in the `multiprocessing
+You can find more details on the new start methods in the `multiprocessing
 documentation <https://docs.python.org/3/library/multiprocessing.html#contexts-and-start-methods>`_.
 
 .. _faq_mkl_threading:
