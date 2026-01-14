@@ -4,12 +4,12 @@
 # See _tree.pyx for details.
 
 import numpy as np
-
 cimport numpy as cnp
 from libcpp.unordered_map cimport unordered_map
 from libcpp.vector cimport vector
 
 from sklearn.utils._typedefs cimport float32_t, float64_t, intp_t, int32_t, uint8_t, uint32_t
+
 from sklearn.tree._splitter cimport Splitter
 from sklearn.tree._splitter cimport SplitRecord
 
@@ -24,6 +24,7 @@ cdef struct Node:
     intp_t n_node_samples                # Number of samples at the node
     float64_t weighted_n_node_samples    # Weighted number of samples at the node
     uint8_t missing_go_to_left     # Whether features have missing values
+
 
 cdef struct ParentInfo:
     # Structure to store information about the parent of a node
@@ -46,31 +47,19 @@ cdef class BaseTree:
     cdef intp_t value_stride             # = n_outputs * max_n_classes
 
     # Methods
-    cdef intp_t _add_node(
-        self,
-        intp_t parent,
-        bint is_left,
-        bint is_leaf,
-        SplitRecord* split_node,
-        float64_t impurity,
-        intp_t n_node_samples,
-        float64_t weighted_n_node_samples,
-        uint8_t missing_go_to_left
-    ) except -1 nogil
+    cdef intp_t _add_node(self, intp_t parent, bint is_left, bint is_leaf,
+                          SplitRecord* split_node, float64_t impurity,
+                          intp_t n_node_samples,
+                          float64_t weighted_n_node_samples,
+                          uint8_t missing_go_to_left) except -1 nogil
     cdef int _resize(self, intp_t capacity) except -1 nogil
     cdef int _resize_c(self, intp_t capacity=*) except -1 nogil
 
-    cdef intp_t _update_node(
-        self,
-        intp_t parent,
-        bint is_left,
-        bint is_leaf,
-        SplitRecord* split_node,
-        float64_t impurity,
-        intp_t n_node_samples,
-        float64_t weighted_n_node_samples,
-        uint8_t missing_go_to_left
-    ) except -1 nogil
+    cdef intp_t _update_node(self, intp_t parent, bint is_left, bint is_leaf,
+                             SplitRecord* split_node, float64_t impurity,
+                             intp_t n_node_samples,
+                             float64_t weighted_n_node_samples,
+                             uint8_t missing_go_to_left) except -1 nogil
 
     # Python API methods: These are methods exposed to Python
     cpdef cnp.ndarray apply(self, object X)
@@ -85,29 +74,15 @@ cdef class BaseTree:
     cpdef compute_feature_importances(self, normalize=*)
 
     # Abstract methods: these functions must be implemented by any decision tree
-    cdef int _set_split_node(
-        self,
-        SplitRecord* split_node,
-        Node* node,
-        intp_t node_id,
-    ) except -1 nogil
-    cdef int _set_leaf_node(
-        self,
-        SplitRecord* split_node,
-        Node* node,
-        intp_t node_id,
-    ) except -1 nogil
-    cdef float32_t _compute_feature(
-        self,
-        const float32_t[:, :] X_ndarray,
-        intp_t sample_index,
-        Node *node
-    ) noexcept nogil
-    cdef void _compute_feature_importances(
-        self,
-        float64_t[:] importances,
-        Node* node,
-    ) noexcept nogil
+    cdef int _set_split_node(self, SplitRecord* split_node,
+                             Node* node, intp_t node_id) except -1 nogil
+    cdef int _set_leaf_node(self, SplitRecord* split_node,
+                            Node* node, intp_t node_id) except -1 nogil
+    cdef float32_t _compute_feature(self, const cnp.float32_t[:, :] X_ndarray,
+                                    intp_t sample_index,
+                                    Node *node) noexcept nogil
+    cdef void _compute_feature_importances(self, cnp.float64_t[:] importances,
+                                           Node* node) noexcept nogil
 
 cdef class Tree(BaseTree):
     # The Tree object is a binary tree structure constructed by the

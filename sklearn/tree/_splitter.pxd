@@ -35,8 +35,8 @@ cdef class BaseSplitter:
     # The impurity computations are delegated to a criterion object.
 
     # Internal structures
-    cdef public intp_t max_features         # Number of features to test
-    cdef public intp_t min_samples_leaf     # Min samples in a leaf
+    cdef public intp_t max_features      # Number of features to test
+    cdef public intp_t min_samples_leaf  # Min samples in a leaf
     cdef public float64_t min_weight_leaf   # Minimum weight in a leaf
 
     cdef object random_state             # Random state
@@ -78,11 +78,13 @@ cdef class BaseSplitter:
         intp_t end,
         float64_t* weighted_n_node_samples
     ) except -1 nogil
+
     cdef int node_split(
         self,
         ParentInfo* parent,
         SplitRecord* split,
     ) except -1 nogil
+
     cdef void node_value(self, float64_t* dest) noexcept nogil
     cdef float64_t node_impurity(self) noexcept nogil
     cdef intp_t pointer_size(self) noexcept nogil

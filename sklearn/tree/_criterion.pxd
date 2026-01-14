@@ -31,9 +31,9 @@ cdef class BaseCriterion:
     # statistics correspond to samples[start:pos] and samples[pos:end].
 
     # Methods
-    cdef intp_t reset(self) except -1 nogil
-    cdef intp_t reverse_reset(self) except -1 nogil
-    cdef intp_t update(self, intp_t new_pos) except -1 nogil
+    cdef int reset(self) except -1 nogil
+    cdef int reverse_reset(self) except -1 nogil
+    cdef int update(self, intp_t new_pos) except -1 nogil
     cdef float64_t node_impurity(self) noexcept nogil
     cdef void children_impurity(
         self,
@@ -51,11 +51,6 @@ cdef class BaseCriterion:
         float64_t impurity_right
     ) noexcept nogil
     cdef float64_t proxy_impurity_improvement(self) noexcept nogil
-    cdef void set_sample_pointers(
-        self,
-        intp_t start,
-        intp_t end
-    ) noexcept nogil
 
 
 cdef class Criterion(BaseCriterion):
@@ -65,41 +60,43 @@ cdef class Criterion(BaseCriterion):
     cdef intp_t n_missing                  # Number of missing values for the feature being evaluated
     cdef bint missing_go_to_left           # Whether missing values go to the left node
 
-    cdef intp_t init(
-        self,
-        const float64_t[:, ::1] y,
-        const float64_t[:] sample_weight,
-        float64_t weighted_n_samples,
-        const intp_t[:] sample_indices,
+    cdef int init(
+            self,
+            const float64_t[:, ::1] y,
+            const float64_t[:] sample_weight,
+            float64_t weighted_n_samples,
+            const intp_t[:] sample_indices,
+            intp_t start,
+            intp_t end,
     ) except -1 nogil
     cdef void init_sum_missing(self)
     cdef void init_missing(self, intp_t n_missing) noexcept nogil
 
     cdef bint check_monotonicity(
-        self,
-        int8_t monotonic_cst,
-        float64_t lower_bound,
-        float64_t upper_bound,
+            self,
+            int8_t monotonic_cst,
+            float64_t lower_bound,
+            float64_t upper_bound,
     ) noexcept nogil
     cdef inline bint _check_monotonicity(
-        self,
-        int8_t monotonic_cst,
-        float64_t lower_bound,
-        float64_t upper_bound,
-        float64_t sum_left,
-        float64_t sum_right,
+            self,
+            int8_t monotonic_cst,
+            float64_t lower_bound,
+            float64_t upper_bound,
+            float64_t sum_left,
+            float64_t sum_right,
     ) noexcept nogil
     cdef void clip_node_value(
-        self,
-        float64_t* dest,
-        float64_t lower_bound,
-        float64_t upper_bound
+            self,
+            float64_t* dest,
+            float64_t lower_bound,
+            float64_t upper_bound
     ) noexcept nogil
     cdef float64_t middle_value(self) noexcept nogil
 
     cdef void node_samples(
-        self,
-        vector[vector[float64_t]]& dest
+            self,
+            vector[vector[float64_t]]& dest
     ) noexcept nogil
 
 cdef class ClassificationCriterion(Criterion):

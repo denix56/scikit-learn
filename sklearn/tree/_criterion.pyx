@@ -4,19 +4,16 @@
 from libc.string cimport memcpy
 from libc.string cimport memset
 from libc.math cimport INFINITY
-from libc.math cimport fabs
 
 import numpy as np
-
 cimport numpy as cnp
-
 cnp.import_array()
 
 from scipy.special.cython_special cimport xlogy
 
-from sklearn.tree._partitioner cimport sort
-from sklearn.tree._utils cimport WeightedFenwickTree
 from sklearn.tree._utils cimport log
+from sklearn.tree._utils cimport WeightedFenwickTree
+from sklearn.tree._partitioner cimport sort
 
 # EPSILON is used in the Poisson criterion
 cdef float64_t EPSILON = 10 * np.finfo('double').eps
@@ -47,21 +44,21 @@ cdef class BaseCriterion:
     def __setstate__(self, d):
         pass
 
-    cdef intp_t reset(self) except -1 nogil:
+    cdef int reset(self) except -1 nogil:
         """Reset the criterion at pos=start.
 
         This method must be implemented by the subclass.
         """
         pass
 
-    cdef intp_t reverse_reset(self) except -1 nogil:
+    cdef int reverse_reset(self) except -1 nogil:
         """Reset the criterion at pos=end.
 
         This method must be implemented by the subclass.
         """
         pass
 
-    cdef intp_t update(self, intp_t new_pos) except -1 nogil:
+    cdef int update(self, intp_t new_pos) except -1 nogil:
         """Updated statistics by moving sample_indices[pos:new_pos] to the left child.
 
         This updates the collected statistics by moving sample_indices[pos:new_pos]
@@ -171,27 +168,6 @@ cdef class BaseCriterion:
                                  - (self.weighted_n_left /
                                     self.weighted_n_node_samples * impurity_left)))
 
-    cdef void set_sample_pointers(
-        self,
-        intp_t start,
-        intp_t end
-    ) noexcept nogil:
-        """Abstract method which will set sample pointers in the criterion.
-
-        The dataset array that we compute criteria on is assumed to consist of 'N'
-        ordered samples or rows (i.e. sorted). Since we pass this by reference, we
-        use sample pointers to move the start and end around to consider only a subset of data.
-        This function should also update relevant statistics that the class uses to compute the final criterion.
-
-        Parameters
-        ----------
-        start : intp_t
-            The index of the first sample to be used on computation of criteria of the current node.
-        end : intp_t
-            The last sample used on this node
-        """
-        pass
-
 
 cdef class Criterion(BaseCriterion):
     """Interface for impurity criteria.
@@ -205,12 +181,14 @@ cdef class Criterion(BaseCriterion):
     Criterion is the base class for criteria used in supervised tree-based models
     with a homogeneous float64-dtyped y.
     """
-    cdef intp_t init(
+    cdef int init(
         self,
         const float64_t[:, ::1] y,
         const float64_t[:] sample_weight,
         float64_t weighted_n_samples,
         const intp_t[:] sample_indices,
+        intp_t start,
+        intp_t end,
     ) except -1 nogil:
         """Placeholder for a method which will initialize the criterion.
 
@@ -413,14 +391,19 @@ cdef class ClassificationCriterion(Criterion):
         return (type(self),
                 (self.n_outputs, np.asarray(self.n_classes)), self.__getstate__())
 
-    cdef intp_t init(
+    cdef int init(
         self,
         const float64_t[:, ::1] y,
         const float64_t[:] sample_weight,
         float64_t weighted_n_samples,
         const intp_t[:] sample_indices,
+        intp_t start,
+        intp_t end
     ) except -1 nogil:
         """Initialize the criterion.
+
+        This initializes the criterion at node sample_indices[start:end] and children
+        sample_indices[start:start] and sample_indices[start:end].
 
         Returns -1 in case of failure to allocate memory (and raise MemoryError)
         or 0 otherwise.
@@ -436,24 +419,18 @@ cdef class ClassificationCriterion(Criterion):
         sample_indices : ndarray, dtype=intp_t
             A mask on the samples. Indices of the samples in X and y we want to use,
             where sample_indices[start:end] correspond to the samples in this node.
+        start : intp_t
+            The first sample to use in the mask
+        end : intp_t
+            The last sample to use in the mask
         """
         self.y = y
         self.sample_weight = sample_weight
         self.sample_indices = sample_indices
-        self.weighted_n_samples = weighted_n_samples
-
-        return 0
-
-    cdef void set_sample_pointers(
-        self,
-        intp_t start,
-        intp_t end
-    ) noexcept nogil:
-        """Set sample pointers in the criterion."""
-        self.n_node_samples = end - start
         self.start = start
         self.end = end
-
+        self.n_node_samples = end - start
+        self.weighted_n_samples = weighted_n_samples
         self.weighted_n_node_samples = 0.0
 
         cdef intp_t i
@@ -466,12 +443,12 @@ cdef class ClassificationCriterion(Criterion):
             memset(&self.sum_total[k, 0], 0, self.n_classes[k] * sizeof(float64_t))
 
         for p in range(start, end):
-            i = self.sample_indices[p]
+            i = sample_indices[p]
 
             # w is originally set to be 1.0, meaning that if no sample weights
             # are given, the default weight of each sample is 1.0.
-            if self.sample_weight is not None:
-                w = self.sample_weight[i]
+            if sample_weight is not None:
+                w = sample_weight[i]
 
             # Count weighted class frequency for each target
             for k in range(self.n_outputs):
@@ -482,6 +459,7 @@ cdef class ClassificationCriterion(Criterion):
 
         # Reset to pos=start
         self.reset()
+        return 0
 
     cdef void init_sum_missing(self):
         """Init sum_missing to hold sums for missing values."""
@@ -516,7 +494,7 @@ cdef class ClassificationCriterion(Criterion):
 
             self.weighted_n_missing += w
 
-    cdef intp_t reset(self) except -1 nogil:
+    cdef int reset(self) except -1 nogil:
         """Reset the criterion at pos=start.
 
         Returns -1 in case of failure to allocate memory (and raise MemoryError)
@@ -533,7 +511,7 @@ cdef class ClassificationCriterion(Criterion):
         )
         return 0
 
-    cdef intp_t reverse_reset(self) except -1 nogil:
+    cdef int reverse_reset(self) except -1 nogil:
         """Reset the criterion at pos=end.
 
         Returns -1 in case of failure to allocate memory (and raise MemoryError)
@@ -550,7 +528,7 @@ cdef class ClassificationCriterion(Criterion):
         )
         return 0
 
-    cdef intp_t update(self, intp_t new_pos) except -1 nogil:
+    cdef int update(self, intp_t new_pos) except -1 nogil:
         """Updated statistics by moving sample_indices[pos:new_pos] to the left child.
 
         Returns -1 in case of failure to allocate memory (and raise MemoryError)
@@ -760,10 +738,13 @@ cdef class Gini(ClassificationCriterion):
     This handles cases where the target is a classification taking values
     0, 1, ... K-2, K-1. If node m represents a region Rm with Nm observations,
     then let
+
         count_k = 1/ Nm \sum_{x_i in Rm} I(yi = k)
+
     be the proportion of class k observations in node m.
 
     The Gini Index is then defined as:
+
         index = \sum_{k=0}^{K-1} count_k (1 - count_k)
               = 1 - \sum_{k=0}^{K-1} count_k ** 2
     """
@@ -881,6 +862,7 @@ cdef class RegressionCriterion(Criterion):
     evaluated by computing the variance of the target values left and right
     of the split point. The computation takes linear time with `n_samples`
     by using ::
+
         var = \sum_i^n (y_i - y_bar) ** 2
             = (\sum_i^n y_i ** 2) - n_samples * y_bar ** 2
     """
@@ -918,33 +900,28 @@ cdef class RegressionCriterion(Criterion):
     def __reduce__(self):
         return (type(self), (self.n_outputs, self.n_samples), self.__getstate__())
 
-    cdef intp_t init(
+    cdef int init(
         self,
         const float64_t[:, ::1] y,
         const float64_t[:] sample_weight,
         float64_t weighted_n_samples,
         const intp_t[:] sample_indices,
+        intp_t start,
+        intp_t end,
     ) except -1 nogil:
-        """Initialize the criterion."""
+        """Initialize the criterion.
+
+        This initializes the criterion at node sample_indices[start:end] and children
+        sample_indices[start:start] and sample_indices[start:end].
+        """
         # Initialize fields
         self.y = y
         self.sample_weight = sample_weight
         self.sample_indices = sample_indices
-        self.weighted_n_samples = weighted_n_samples
-
-        return 0
-
-    cdef void set_sample_pointers(
-        self,
-        intp_t start,
-        intp_t end
-    ) noexcept nogil:
-        """Set sample pointers in the criterion."""
         self.start = start
         self.end = end
-
         self.n_node_samples = end - start
-
+        self.weighted_n_samples = weighted_n_samples
         self.weighted_n_node_samples = 0.
 
         cdef intp_t i
@@ -957,10 +934,10 @@ cdef class RegressionCriterion(Criterion):
         memset(&self.sum_total[0], 0, self.n_outputs * sizeof(float64_t))
 
         for p in range(start, end):
-            i = self.sample_indices[p]
+            i = sample_indices[p]
 
-            if self.sample_weight is not None:
-                w = self.sample_weight[i]
+            if sample_weight is not None:
+                w = sample_weight[i]
 
             for k in range(self.n_outputs):
                 y_ik = self.y[i, k]
@@ -972,6 +949,7 @@ cdef class RegressionCriterion(Criterion):
 
         # Reset to pos=start
         self.reset()
+        return 0
 
     cdef void init_sum_missing(self):
         """Init sum_missing to hold sums for missing values."""
@@ -1009,7 +987,7 @@ cdef class RegressionCriterion(Criterion):
 
             self.weighted_n_missing += w
 
-    cdef intp_t reset(self) except -1 nogil:
+    cdef int reset(self) except -1 nogil:
         """Reset the criterion at pos=start."""
         self.pos = self.start
         _move_sums_regression(
@@ -1022,7 +1000,7 @@ cdef class RegressionCriterion(Criterion):
         )
         return 0
 
-    cdef intp_t reverse_reset(self) except -1 nogil:
+    cdef int reverse_reset(self) except -1 nogil:
         """Reset the criterion at pos=end."""
         self.pos = self.end
         _move_sums_regression(
@@ -1035,7 +1013,7 @@ cdef class RegressionCriterion(Criterion):
         )
         return 0
 
-    cdef intp_t update(self, intp_t new_pos) except -1 nogil:
+    cdef int update(self, intp_t new_pos) except -1 nogil:
         """Updated statistics by moving sample_indices[pos:new_pos] to the left."""
         cdef intp_t pos = self.pos
 
@@ -1137,6 +1115,7 @@ cdef class RegressionCriterion(Criterion):
 
 cdef class MSE(RegressionCriterion):
     """Mean squared error impurity criterion.
+
         MSE = var_left + var_right
     """
 
@@ -1534,12 +1513,14 @@ cdef class MAE(Criterion):
         self.sorted_y = np.empty(n_samples, dtype=np.float64)
         self.sorted_indices = np.empty(n_samples, dtype=np.intp)
 
-    cdef intp_t init(
+    cdef int init(
         self,
         const float64_t[:, ::1] y,
         const float64_t[:] sample_weight,
         float64_t weighted_n_samples,
         const intp_t[:] sample_indices,
+        intp_t start,
+        intp_t end,
     ) except -1 nogil:
         """Initialize the criterion.
 
@@ -1549,38 +1530,30 @@ cdef class MAE(Criterion):
         WARNING: sample_indices will be modified in-place externally
         after this method is called.
         """
+        cdef:
+            intp_t i, p
+            intp_t n = end - start
+            float64_t w = 1.0
+
         # Initialize fields
         self.y = y
         self.sample_weight = sample_weight
         self.sample_indices = sample_indices
-        self.weighted_n_samples = weighted_n_samples
-
-        return 0
-
-    cdef void set_sample_pointers(
-        self,
-        intp_t start,
-        intp_t end
-    ) noexcept nogil:
-        """Set sample pointers in the criterion."""
-        cdef intp_t i, p, k
-        cdef float64_t w = 1.0
-
         self.start = start
         self.end = end
-        self.n_node_samples = end - start
+        self.n_node_samples = n
+        self.weighted_n_samples = weighted_n_samples
         self.weighted_n_node_samples = 0.
 
         for p in range(start, end):
-            i = self.sample_indices[p]
-
-            if self.sample_weight is not None:
-                w = self.sample_weight[i]
-
+            i = sample_indices[p]
+            if sample_weight is not None:
+                w = sample_weight[i]
             self.weighted_n_node_samples += w
 
         # Reset to pos=start
         self.reset()
+        return 0
 
     cdef void init_missing(self, intp_t n_missing) noexcept nogil:
         """Raise error if n_missing != 0."""
@@ -1589,7 +1562,7 @@ cdef class MAE(Criterion):
         with gil:
             raise ValueError("missing values is not supported for MAE.")
 
-    cdef intp_t reset(self) except -1 nogil:
+    cdef int reset(self) except -1 nogil:
         """Reset the criterion at pos=start.
 
         Returns -1 in case of failure to allocate memory (and raise MemoryError)
@@ -1660,11 +1633,11 @@ cdef class MAE(Criterion):
 
         return 0
 
-    cdef intp_t reverse_reset(self) except -1 nogil:
+    cdef int reverse_reset(self) except -1 nogil:
         """For this class, this method is never called."""
         raise NotImplementedError("This method is not implemented for this subclass")
 
-    cdef intp_t update(self, intp_t new_pos) except -1 nogil:
+    cdef int update(self, intp_t new_pos) except -1 nogil:
         """Updated statistics by moving sample_indices[pos:new_pos] to the left.
         new_pos is guaranteed to be greater than pos.
 
@@ -1776,7 +1749,6 @@ cdef class Poisson(RegressionCriterion):
     Note that the deviance is >= 0, and since we have `y_pred = mean(y_true)`
     at the leaves, one always has `sum(y_pred - y_true) = 0`. It remains the
     implemented impurity (factor 2 is skipped):
-
         1/n * sum(y_true * log(y_true/y_pred)
     """
     # FIXME in 1.0:

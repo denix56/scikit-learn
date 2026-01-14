@@ -2,23 +2,23 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from cpython cimport Py_INCREF, PyObject, PyTypeObject
-from cython.operator cimport dereference as deref
-from libc.math cimport isnan
+
+from libc.stdlib cimport free
+from libc.stdlib cimport malloc
+from libc.string cimport memcpy
+from libc.string cimport memset
 from libc.stdint cimport INTPTR_MAX
-from libc.stdlib cimport free, malloc
-from libc.string cimport memcpy, memset
+from libc.math cimport isnan
 from libcpp.vector cimport vector
+from libcpp.algorithm cimport pop_heap
+from libcpp.algorithm cimport push_heap
 from libcpp.stack cimport stack
 from libcpp cimport bool
-from libcpp.algorithm cimport pop_heap, push_heap
-from libcpp.vector cimport vector
 
 import struct
 
 import numpy as np
-
 cimport numpy as cnp
-
 cnp.import_array()
 
 from scipy.sparse import issparse
@@ -27,13 +27,12 @@ from scipy.sparse import csr_matrix
 from sklearn.tree._utils cimport safe_realloc
 from sklearn.tree._utils cimport sizet_ptr_to_ndarray
 
-
 cdef extern from "numpy/arrayobject.h":
     object PyArray_NewFromDescr(PyTypeObject* subtype, cnp.dtype descr,
-                                intp_t nd, cnp.npy_intp* dims,
+                                int nd, cnp.npy_intp* dims,
                                 cnp.npy_intp* strides,
-                                void* data, intp_t flags, object obj)
-    intp_t PyArray_SetBaseObject(cnp.ndarray arr, PyObject* obj)
+                                void* data, int flags, object obj)
+    int PyArray_SetBaseObject(cnp.ndarray arr, PyObject* obj)
 
 # =============================================================================
 # Types and constants
@@ -139,21 +138,14 @@ cdef struct StackRecord:
     float64_t lower_bound
     float64_t upper_bound
 
-
 cdef class DepthFirstTreeBuilder(TreeBuilder):
     """Build a decision tree in depth-first fashion."""
 
-    def __cinit__(
-        self,
-        Splitter splitter,
-        intp_t min_samples_split,
-        intp_t min_samples_leaf,
-        float64_t min_weight_leaf,
-        intp_t max_depth,
-        float64_t min_impurity_decrease,
-        uint8_t store_leaf_values=False,
-        cnp.ndarray initial_roots=None,
-    ):
+    def __cinit__(self, Splitter splitter, intp_t min_samples_split,
+                  intp_t min_samples_leaf, float64_t min_weight_leaf,
+                  intp_t max_depth, float64_t min_impurity_decrease,
+                  uint8_t store_leaf_values=False,
+                  cnp.ndarray initial_roots=None):
         self.splitter = splitter
         self.min_samples_split = min_samples_split
         self.min_samples_leaf = min_samples_leaf
@@ -311,37 +303,37 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
         cdef ParentInfo parent_record
         _init_parent_record(&parent_record)
 
-        if not first:
-            # push reached leaf nodes onto stack
-            for key, value in reversed(sorted(false_roots.items())):
-                end += value[0]
-                update_stack.push({
-                    "start": start,
-                    "end": end,
-                    "depth": value[1],
-                    "parent": key[0],
-                    "is_left": key[1],
-                    "impurity": tree.impurity[key[0]],
+        with nogil:
+            if not first:
+                # push reached leaf nodes onto stack
+                for key, value in reversed(sorted(false_roots.items())):
+                    end += value[0]
+                    update_stack.push({
+                        "start": start,
+                        "end": end,
+                        "depth": value[1],
+                        "parent": key[0],
+                        "is_left": key[1],
+                        "impurity": tree.impurity[key[0]],
+                        "n_constant_features": 0,
+                        "lower_bound": -INFINITY,
+                        "upper_bound": INFINITY,
+                    })
+                    start += value[0]
+            else:
+                # push root node onto stack
+                builder_stack.push({
+                    "start": 0,
+                    "end": n_node_samples,
+                    "depth": 0,
+                    "parent": _TREE_UNDEFINED,
+                    "is_left": 0,
+                    "impurity": INFINITY,
                     "n_constant_features": 0,
                     "lower_bound": -INFINITY,
                     "upper_bound": INFINITY,
                 })
-                start += value[0]
-        else:
-            # push root node onto stack
-            builder_stack.push({
-                "start": 0,
-                "end": n_node_samples,
-                "depth": 0,
-                "parent": _TREE_UNDEFINED,
-                "is_left": 0,
-                "impurity": INFINITY,
-                "n_constant_features": 0,
-                "lower_bound": -INFINITY,
-                "upper_bound": INFINITY,
-            })
 
-        with nogil:
             while not update_stack.empty():
                 stack_record = update_stack.top()
                 update_stack.pop()
@@ -496,7 +488,7 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
 
                 if first:
                     parent_record.impurity = splitter.node_impurity()
-                    first=0
+                    first = 0
 
                 # impurity == 0 with tolerance due to rounding errors
                 is_leaf = is_leaf or parent_record.impurity <= EPSILON
@@ -530,11 +522,7 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
                 # inspection and interpretation
                 splitter.node_value(tree.value + node_id * tree.value_stride)
                 if splitter.with_monotonic_cst:
-                    splitter.clip_node_value(
-                        tree.value + node_id * tree.value_stride,
-                        parent_record.lower_bound,
-                        parent_record.upper_bound
-                    )
+                    splitter.clip_node_value(tree.value + node_id * tree.value_stride, parent_record.lower_bound, parent_record.upper_bound)
 
                 if not is_leaf:
                     if (
@@ -724,7 +712,7 @@ cdef class BestFirstTreeBuilder(TreeBuilder):
         cdef intp_t max_split_nodes = max_leaf_nodes - 1
         cdef bint is_leaf
         cdef intp_t max_depth_seen = -1
-        cdef intp_t rc = 0
+        cdef int rc = 0
         cdef Node* node
 
         cdef ParentInfo parent_record
@@ -862,7 +850,7 @@ cdef class BestFirstTreeBuilder(TreeBuilder):
         if rc == -1:
             raise MemoryError()
 
-    cdef inline intp_t _add_split_node(
+    cdef inline int _add_split_node(
         self,
         Splitter splitter,
         Tree tree,
@@ -972,10 +960,7 @@ cdef class BaseTree:
 
     Downstream classes must implement methods to actually traverse the tree.
     """
-    cdef int _resize(
-        self,
-        intp_t capacity
-    ) except -1 nogil:
+    cdef int _resize(self, intp_t capacity) except -1 nogil:
         """Resize all inner arrays to `capacity`, if `capacity` == -1, then
             double the size of the inner arrays.
 
@@ -1020,12 +1005,8 @@ cdef class BaseTree:
         self.capacity = capacity
         return 0
 
-    cdef int _set_split_node(
-        self,
-        SplitRecord* split_node,
-        Node* node,
-        intp_t node_id,
-    ) except -1 nogil:
+    cdef int _set_split_node(self, SplitRecord* split_node,
+                             Node* node, intp_t node_id) except -1 nogil:
         """Set split node data.
 
         Parameters
@@ -1042,12 +1023,8 @@ cdef class BaseTree:
         node.threshold = split_node.threshold
         return 1
 
-    cdef int _set_leaf_node(
-        self,
-        SplitRecord* split_node,
-        Node* node,
-        intp_t node_id,
-    ) except -1 nogil:
+    cdef int _set_leaf_node(self, SplitRecord* split_node,
+                            Node* node, intp_t node_id) except -1 nogil:
         """Set leaf node data.
 
         Parameters
@@ -1067,7 +1044,7 @@ cdef class BaseTree:
 
     cdef float32_t _compute_feature(
         self,
-        const float32_t[:, :] X_ndarray,
+        const cnp.float32_t[:, :] X_ndarray,
         intp_t sample_index,
         Node *node
     ) noexcept nogil:
@@ -1080,17 +1057,11 @@ cdef class BaseTree:
         cdef float32_t feature = X_ndarray[sample_index, node.feature]
         return feature
 
-    cdef intp_t _add_node(
-        self,
-        intp_t parent,
-        bint is_left,
-        bint is_leaf,
-        SplitRecord* split_node,
-        float64_t impurity,
-        intp_t n_node_samples,
-        float64_t weighted_n_node_samples,
-        uint8_t missing_go_to_left
-    ) except -1 nogil:
+    cdef intp_t _add_node(self, intp_t parent, bint is_left, bint is_leaf,
+                          SplitRecord* split_node, float64_t impurity,
+                          intp_t n_node_samples,
+                          float64_t weighted_n_node_samples,
+                          uint8_t missing_go_to_left) except -1 nogil:
         """Add a node to the tree.
 
         The new node registers itself as the child of its parent.
@@ -1209,7 +1180,7 @@ cdef class BaseTree:
             raise ValueError("X.dtype should be np.float32, got %s" % X.dtype)
 
         # Extract input
-        cdef const float32_t[:, :] X_ndarray = X
+        cdef const cnp.float32_t[:, :] X_ndarray = X
         cdef intp_t n_samples = X.shape[0]
         cdef float32_t X_i_node_feature
 
@@ -1294,6 +1265,7 @@ cdef class BaseTree:
                     # ... and node.right_child != _TREE_LEAF:
                     if feature_to_sample[node.feature] == i:
                         feature_value = X_sample[node.feature]
+
                     else:
                         feature_value = 0.
 
@@ -1329,9 +1301,8 @@ cdef class BaseTree:
             raise ValueError("X.dtype should be np.float32, got %s" % X.dtype)
 
         # Extract input
-        cdef const float32_t[:, :] X_ndarray = X
+        cdef const cnp.float32_t[:, :] X_ndarray = X
         cdef intp_t n_samples = X.shape[0]
-        cdef float32_t X_i_node_feature
 
         # Initialize output
         cdef intp_t[:] indptr = np.zeros(n_samples + 1, dtype=np.intp)
@@ -1500,7 +1471,7 @@ cdef class BaseTree:
         cdef float64_t normalizer = 0.
         cdef intp_t i = 0
 
-        cdef float64_t[:] importances = np.zeros(self.n_features)
+        cdef cnp.float64_t[:] importances = np.zeros(self.n_features)
 
         with nogil:
             while node != end_node:
@@ -1524,11 +1495,8 @@ cdef class BaseTree:
 
         return np.asarray(importances)
 
-    cdef void _compute_feature_importances(
-        self,
-        float64_t[:] importances,
-        Node* node
-    ) noexcept nogil:
+    cdef void _compute_feature_importances(self, cnp.float64_t[:] importances,
+                                           Node* node) noexcept nogil:
         """Compute feature importances from a Node in the Tree.
 
         Wrapped in a private function to allow subclassing that
@@ -2111,7 +2079,7 @@ cdef class _PathFinder(_CCPPruneController):
     cdef float64_t[:] impurities
     cdef uint32_t count
 
-    def __cinit__(self, intp_t node_count):
+    def __cinit__(self,  intp_t node_count):
         self.ccp_alphas = np.zeros(shape=(node_count), dtype=np.float64)
         self.impurities = np.zeros(shape=(node_count), dtype=np.float64)
         self.count = 0
@@ -2408,7 +2376,7 @@ cdef void _build_pruned_tree(
         # value_stride for original tree and new tree are the same
         intp_t value_stride = orig_tree.value_stride
         intp_t max_depth_seen = -1
-        intp_t rc = 0
+        int rc = 0
         Node* node
         float64_t* orig_value_ptr
         float64_t* new_value_ptr

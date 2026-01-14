@@ -179,6 +179,7 @@ cdef class Splitter(BaseSplitter):
             Monotonicity constraints
 
         """
+
         self.criterion = criterion
 
         self.n_samples = 0
@@ -231,6 +232,7 @@ cdef class Splitter(BaseSplitter):
         has_missing : bool
             At least one missing values is in X.
         """
+
         self.rand_r_state = self.random_state.randint(0, RAND_R_MAX)
         cdef intp_t n_samples = X.shape[0]
 
@@ -268,21 +270,8 @@ cdef class Splitter(BaseSplitter):
         self.y = y
 
         self.sample_weight = sample_weight
-
-        self.criterion.init(
-            self.y,
-            self.sample_weight,
-            self.weighted_n_samples,
-            self.samples
-        )
-
-        self.criterion.set_sample_pointers(
-            self.start,
-            self.end
-        )
         if missing_values_in_feature_mask is not None:
             self.criterion.init_sum_missing()
-
         return 0
 
     cdef int node_reset(
@@ -309,7 +298,14 @@ cdef class Splitter(BaseSplitter):
         self.start = start
         self.end = end
 
-        self.criterion.set_sample_pointers(start, end)
+        self.criterion.init(
+            self.y,
+            self.sample_weight,
+            self.weighted_n_samples,
+            self.samples,
+            start,
+            end
+        )
 
         weighted_n_node_samples[0] = self.criterion.weighted_n_node_samples
         return 0
@@ -400,7 +396,7 @@ cdef class Splitter(BaseSplitter):
         return 0
 
 
-cdef inline intp_t node_split_best(
+cdef inline int node_split_best(
     Splitter splitter,
     Partitioner partitioner,
     Criterion criterion,
@@ -533,6 +529,7 @@ cdef inline intp_t node_split_best(
         criterion.init_missing(n_missing)  # initialize even when n_missing == 0
 
         # Evaluate all splits
+
         # If there are missing values, then we search twice for the most optimal split.
         # The first search will have all the missing values going to the right node.
         # The second search will have all the missing values going to the left node.
@@ -851,13 +848,13 @@ cdef inline int node_split_random(
 
         # Reject if monotonicity constraints are not satisfied
         if (
-            with_monotonic_cst and
-            monotonic_cst[current_split.feature] != 0 and
-            not criterion.check_monotonicity(
-                monotonic_cst[current_split.feature],
-                lower_bound,
-                upper_bound,
-            )
+                with_monotonic_cst and
+                monotonic_cst[current_split.feature] != 0 and
+                not criterion.check_monotonicity(
+                    monotonic_cst[current_split.feature],
+                    lower_bound,
+                    upper_bound,
+                )
         ):
             continue
 
@@ -938,9 +935,9 @@ cdef class BestSplitter(Splitter):
         )
 
     cdef int node_split(
-        self,
-        ParentInfo* parent_record,
-        SplitRecord* split,
+            self,
+            ParentInfo* parent_record,
+            SplitRecord* split,
     ) except -1 nogil:
         return node_split_best(
             self,
@@ -966,9 +963,9 @@ cdef class BestSparseSplitter(Splitter):
         )
 
     cdef int node_split(
-        self,
-        ParentInfo* parent_record,
-        SplitRecord* split,
+            self,
+            ParentInfo* parent_record,
+            SplitRecord* split,
     ) except -1 nogil:
         return node_split_best(
             self,
@@ -994,9 +991,9 @@ cdef class RandomSplitter(Splitter):
         )
 
     cdef int node_split(
-        self,
-        ParentInfo* parent_record,
-        SplitRecord* split,
+            self,
+            ParentInfo* parent_record,
+            SplitRecord* split,
     ) except -1 nogil:
         return node_split_random(
             self,
