@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from cpython cimport Py_INCREF, PyObject, PyTypeObject
+from cython.operator cimport dereference as deref
 
 from libc.stdlib cimport free
 from libc.stdlib cimport malloc
@@ -67,6 +68,7 @@ cdef inline void _init_parent_record(ParentInfo* record) noexcept nogil:
     record.impurity = INFINITY
     record.lower_bound = -INFINITY
     record.upper_bound = INFINITY
+
 
 # =============================================================================
 # TreeBuilder
@@ -137,6 +139,12 @@ cdef struct StackRecord:
     intp_t n_constant_features
     float64_t lower_bound
     float64_t upper_bound
+
+cdef struct FalseRootRecord:
+    intp_t count
+    intp_t depth
+    intp_t parent
+    bint is_left
 
 cdef class DepthFirstTreeBuilder(TreeBuilder):
     """Build a decision tree in depth-first fashion."""
@@ -254,6 +262,9 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
         cdef uint8_t store_leaf_values = self.store_leaf_values
         cdef cnp.ndarray initial_roots = self.initial_roots
 
+        cdef vector[FalseRootRecord] false_root_records
+        cdef FalseRootRecord false_root_record
+
         # Initial capacity
         cdef intp_t init_capacity
         cdef bint first = 0
@@ -273,6 +284,15 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
             false_roots = {}
             for key_value_pair in initial_roots:
                 false_roots[tuple(key_value_pair[0])] = key_value_pair[1]
+
+            false_root_records.reserve(len(false_roots))
+            # Precompute records under the GIL for nogil traversal.
+            for key, value in reversed(sorted(false_roots.items())):
+                false_root_record.parent = <intp_t> key[0]
+                false_root_record.is_left = <bint> key[1]
+                false_root_record.count = <intp_t> value[0]
+                false_root_record.depth = <intp_t> value[1]
+                false_root_records.push_back(false_root_record)
 
             # reset the root array
             self.initial_roots = None
@@ -299,27 +319,31 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
         cdef stack[StackRecord] builder_stack
         cdef stack[StackRecord] update_stack
         cdef StackRecord stack_record
+        cdef intp_t i
 
         cdef ParentInfo parent_record
         _init_parent_record(&parent_record)
 
+        cdef float64_t[:] impurity = tree.impurity
+
         with nogil:
             if not first:
                 # push reached leaf nodes onto stack
-                for key, value in reversed(sorted(false_roots.items())):
-                    end += value[0]
+                for i in range(false_root_records.size()):
+                    false_root_record = false_root_records[i]
+                    end += false_root_record.count
                     update_stack.push({
                         "start": start,
                         "end": end,
-                        "depth": value[1],
-                        "parent": key[0],
-                        "is_left": key[1],
-                        "impurity": tree.impurity[key[0]],
+                        "depth": false_root_record.depth,
+                        "parent": false_root_record.parent,
+                        "is_left": false_root_record.is_left,
+                        "impurity": impurity[false_root_record.parent],
                         "n_constant_features": 0,
                         "lower_bound": -INFINITY,
                         "upper_bound": INFINITY,
                     })
-                    start += value[0]
+                    start += false_root_record.count
             else:
                 # push root node onto stack
                 builder_stack.push({
