@@ -183,6 +183,7 @@ cdef class Splitter(BaseSplitter):
         self.criterion = criterion
 
         self.n_samples = 0
+
         self.n_features = 0
 
         self.max_features = max_features
