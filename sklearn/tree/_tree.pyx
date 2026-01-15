@@ -484,7 +484,7 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
                     })
                 elif store_leaf_values and is_leaf:
                     # copy leaf values to leaf_values array
-                    splitter.node_samples((*value_samples)[node_id])
+                    splitter.node_samples(deref(value_samples)[node_id])
 
                 if depth > max_depth_seen:
                     max_depth_seen = depth
@@ -609,7 +609,7 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
                     })
                 elif store_leaf_values and is_leaf:
                     # copy leaf values to leaf_values array
-                    splitter.node_samples((*value_samples)[node_id])
+                    splitter.node_samples(deref(value_samples)[node_id])
 
                 if depth > max_depth_seen:
                     max_depth_seen = depth
