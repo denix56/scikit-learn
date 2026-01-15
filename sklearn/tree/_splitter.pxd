@@ -111,7 +111,7 @@ cdef class Splitter(BaseSplitter):
         const uint8_t[::1] missing_values_in_feature_mask,
     ) except -1
 
-    cdef void node_samples(self, vector[vector[float64_t]]& dest) noexcept nogil
+    cdef void node_samples(self, vector[vector[float64_t]]& dest) noexcept
 
     # Methods that allow modifications to stopping conditions
     cdef bint check_presplit_conditions(

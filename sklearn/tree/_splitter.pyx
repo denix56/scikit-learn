@@ -24,6 +24,7 @@ from libc.string cimport memcpy
 
 from sklearn.utils._typedefs cimport int8_t
 from sklearn.tree._criterion cimport Criterion
+from sklearn.tree._splitter cimport SplitRecord
 from sklearn.tree._partitioner cimport (
     FEATURE_THRESHOLD, DensePartitioner, SparsePartitioner,
     shift_missing_values_to_left_if_required
@@ -336,7 +337,7 @@ cdef class Splitter(BaseSplitter):
 
         self.criterion.clip_node_value(dest, lower_bound, upper_bound)
 
-    cdef void node_samples(self, vector[vector[float64_t]]& dest) noexcept nogil:
+    cdef void node_samples(self, vector[vector[float64_t]]& dest) noexcept:
         """Copy the samples[start:end] into dest."""
         self.criterion.node_samples(dest)
 
