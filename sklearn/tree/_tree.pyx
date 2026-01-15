@@ -25,6 +25,7 @@ cnp.import_array()
 from scipy.sparse import issparse
 from scipy.sparse import csr_matrix
 
+from sklearn.tree._splitter cimport Splitter
 from sklearn.tree._utils cimport safe_realloc
 from sklearn.tree._utils cimport sizet_ptr_to_ndarray
 
@@ -325,7 +326,6 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
         _init_parent_record(&parent_record)
 
         cdef float64_t[:] impurity = tree.impurity
-        cdef unordered_map[intp_t, vector[vector[float64_t]]]* value_samples = &tree.value_samples
 
         with nogil:
             if not first:
@@ -484,7 +484,7 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
                     })
                 elif store_leaf_values and is_leaf:
                     # copy leaf values to leaf_values array
-                    splitter.node_samples(deref(value_samples)[node_id])
+                    splitter.node_samples(tree.value_samples[node_id])
 
                 if depth > max_depth_seen:
                     max_depth_seen = depth
@@ -609,7 +609,7 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
                     })
                 elif store_leaf_values and is_leaf:
                     # copy leaf values to leaf_values array
-                    splitter.node_samples(deref(value_samples)[node_id])
+                    splitter.node_samples(tree.value_samples[node_id])
 
                 if depth > max_depth_seen:
                     max_depth_seen = depth
