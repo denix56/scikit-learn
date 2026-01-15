@@ -722,6 +722,7 @@ cdef class BestFirstTreeBuilder(TreeBuilder):
         cdef intp_t max_leaf_nodes = self.max_leaf_nodes
 
         cdef uint8_t store_leaf_values = self.store_leaf_values
+        cdef intp_t split_record_size = splitter.pointer_size()
 
         # Recursive partition (without actual recursion)
         splitter.init(X, y, sample_weight, missing_values_in_feature_mask)
@@ -753,6 +754,7 @@ cdef class BestFirstTreeBuilder(TreeBuilder):
             # add root to frontier
             rc = self._add_split_node(
                 splitter=splitter,
+                split_record_size=split_record_size,
                 tree=tree,
                 start=0,
                 end=n_node_samples,
@@ -827,6 +829,7 @@ cdef class BestFirstTreeBuilder(TreeBuilder):
                     parent_record.impurity = record.impurity_left
                     rc = self._add_split_node(
                         splitter=splitter,
+                        split_record_size=split_record_size,
                         tree=tree,
                         start=record.start,
                         end=record.pos,
@@ -849,6 +852,7 @@ cdef class BestFirstTreeBuilder(TreeBuilder):
                     parent_record.impurity = record.impurity_right
                     rc = self._add_split_node(
                         splitter=splitter,
+                        split_record_size=split_record_size,
                         tree=tree,
                         start=record.pos,
                         end=record.end,
@@ -881,6 +885,7 @@ cdef class BestFirstTreeBuilder(TreeBuilder):
     cdef inline int _add_split_node(
         self,
         Splitter splitter,
+        intp_t split_record_size,
         Tree tree,
         intp_t start,
         intp_t end,
@@ -898,7 +903,7 @@ cdef class BestFirstTreeBuilder(TreeBuilder):
         # to know what kind of SplitRecord to use. In some cases, ObliqueSplitRecord
         # might be used. The split pointer here knows the size of the underlying Record
         # because the subclassed splitter will define "pointer_size" accordingly.
-        cdef SplitRecord* split_ptr = <SplitRecord *>malloc(splitter.pointer_size())
+        cdef SplitRecord* split_ptr = <SplitRecord *>malloc(split_record_size)
 
         cdef intp_t node_id
         cdef intp_t n_node_samples
