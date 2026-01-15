@@ -16,6 +16,9 @@ from libcpp.algorithm cimport push_heap
 from libcpp.stack cimport stack
 from libcpp cimport bool
 
+from libcpp.unordered_map cimport unordered_map
+from libcpp.vector cimport vector
+
 import struct
 
 import numpy as np
@@ -322,6 +325,8 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
         cdef StackRecord stack_record
         cdef intp_t i
 
+        cdef unordered_map[intp_t, vector[vector[float64_t]]]* value_samples = &tree.value_samples
+
         cdef ParentInfo parent_record
         _init_parent_record(&parent_record)
 
@@ -484,7 +489,7 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
                     })
                 elif store_leaf_values and is_leaf:
                     # copy leaf values to leaf_values array
-                    splitter.node_samples(tree.value_samples[node_id])
+                    splitter.node_samples(deref(value_samples)[node_id])
 
                 if depth > max_depth_seen:
                     max_depth_seen = depth
@@ -609,7 +614,7 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
                     })
                 elif store_leaf_values and is_leaf:
                     # copy leaf values to leaf_values array
-                    splitter.node_samples(tree.value_samples[node_id])
+                    splitter.node_samples(deref(value_samples)[node_id])
 
                 if depth > max_depth_seen:
                     max_depth_seen = depth

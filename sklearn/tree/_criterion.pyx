@@ -293,6 +293,7 @@ cdef class Criterion(BaseCriterion):
             # Get the index of the current sample
             j = self.sample_indices[self.start + i]
 
+            dest[i].reserve(self.n_outputs)
             # Get the sample values for each output
             for k in range(self.n_outputs):
                 dest[i].push_back(self.y[j, k])
