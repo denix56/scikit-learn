@@ -336,7 +336,7 @@ cdef class Splitter(BaseSplitter):
 
         self.criterion.clip_node_value(dest, lower_bound, upper_bound)
 
-    cdef void node_samples(self, vector[vector[float64_t]]& dest) noexcept nogil:
+    cdef inline void node_samples(self, vector[vector[float64_t]]& dest) noexcept nogil:
         """Copy the samples[start:end] into dest."""
         self.criterion.node_samples(dest)
 
